@@ -2,15 +2,11 @@
 #include <SPI.h>
 #include <Adafruit_PN532.h>
 
-// If using the breakout with SPI, define the pins for SPI communication.
 #define PN532_SS   (4)
 #define FIRST_BUTTON_PIN (2)
 #define PN532DEBUG (1)
+#define MAX_RESPONSE_LENGTH (255)
 
-// Use this line for a breakout with a hardware SPI connection.  Note that
-// the PN532 SCK, MOSI, and MISO pins need to be connected to the Arduino's
-// hardware SPI SCK, MOSI, and MISO pins.  On an Arduino Uno these are
-// SCK = 13, MOSI = 11, MISO = 12.  The SS line can be any digital IO pin.
 Adafruit_PN532 nfc(PN532_SS);
 
 void setup() {
@@ -40,13 +36,12 @@ void setup() {
 }
 
 uint8_t lineLength = 0;
+uint8_t responseMessage[MAX_RESPONSE_LENGTH];
 
 void loop(void) {
-  uint8_t responseMessage[30];
-  uint8_t responseLength = sizeof(responseMessage);
   if (nfc.inListPassiveTarget()) {
     Serial.println("Something's there...");
-    selectPivApp(responseMessage, &responseLength);
+    selectPivApp();
     waitUntilButtonPushed();
   } else {
     if (lineLength > 20) {
@@ -59,19 +54,21 @@ void loop(void) {
   }
 }
 
-void selectPivApp(uint8_t responseMessage[], uint8_t *responseLength) {
+void selectPivApp() {
   uint8_t message[] = {0x00, 0xA4, 0x04, 0x00, 0x09, 0xA0, 0x00, 0x00, 0x03, 0x08, 0x00, 0x00, 0x10, 0x00, 0x00};
-  if (sendMessage(message, sizeof(message), responseMessage, responseLength, 0x90, 0x00)) {
-    enterPin(responseMessage, responseLength);
+  uint8_t responseLength = MAX_RESPONSE_LENGTH;
+  if (sendMessage(message, sizeof(message), &responseLength, 0x90, 0x00)) {
+    enterPin();
   }
 }
 
-void enterPin(uint8_t responseMessage[], uint8_t *responseLength) {
+void enterPin() {
   uint8_t message[] = {0x00, 0x20, 0x00, 0x80, 0x08, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0xFF, 0xFF};
-  sendMessage(message, sizeof(message), responseMessage, responseLength, 0x90, 0x00);
+  uint8_t responseLength = MAX_RESPONSE_LENGTH;
+  sendMessage(message, sizeof(message), &responseLength, 0x90, 0x00);
 }
 
-boolean sendMessage(uint8_t message[], uint8_t messageLength, uint8_t responseMessage[], uint8_t *responseLength, uint8_t expectedSw1, uint8_t expectedSw2) {
+boolean sendMessage(uint8_t message[], uint8_t messageLength, uint8_t *responseLength, uint8_t expectedSw1, uint8_t expectedSw2) {
   Serial.println("Outgoing:");
   nfc.PrintHex(message, messageLength);
   boolean result = nfc.inDataExchange(message, messageLength, responseMessage, responseLength);
@@ -95,4 +92,3 @@ void waitUntilButtonPushed(void) {
   while (digitalRead(FIRST_BUTTON_PIN) == LOW) {}
   Serial.print("Listening...");
 }
-
